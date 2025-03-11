@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1](https://github.com/bearcove/shapely/compare/shapely-urlencoded-v3.0.0...shapely-urlencoded-v3.0.1) - 2025-03-11
+
+### Other
+
+- Improve debug output
+
 ## [2.0.1](https://github.com/bearcove/shapely/compare/shapely-urlencoded-v2.0.0...shapely-urlencoded-v2.0.1) - 2025-03-11
 
 ### Other
