@@ -78,6 +78,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "self_cell"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2fdfc24bc566f839a2da4c4295b82db7d25a24253867d5c64355abb5799bdbe"
+
+[[package]]
 name = "shadow_counted"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -107,6 +113,7 @@ dependencies = [
 name = "shapely-json"
 version = "3.0.0"
 dependencies = [
+ "self_cell",
  "shapely",
 ]
 

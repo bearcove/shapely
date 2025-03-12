@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::ptr::NonNull;
 
+use crate::Partial;
 use crate::{trace, InitMark, ShapeDesc, Shapely};
-
 /// Where to write the value
-enum Destination<'s> {
+pub enum Destination<'s> {
     /// Writes directly to some address. If it's already initialized,
     /// the old value is dropped in place.
     ///
@@ -16,6 +16,47 @@ enum Destination<'s> {
 
     /// Inserts into a HashMap<String, V>
     HashMap { map: NonNull<u8>, key: String },
+}
+
+impl<'s> Destination<'s> {
+    /// Mark this destination as initialized without filling it with a value.
+    pub fn mark_as_initialized(&mut self) {
+        match self {
+            Destination::Ptr { init_mark, .. } => {
+                // For struct fields, we can just set the init mark
+                init_mark.set();
+            }
+            Destination::HashMap { .. } => {
+                // For HashMap slots, marking as initialized doesn't make sense
+                // without actually inserting a value
+                panic!("Cannot mark a HashMap slot as initialized without a value");
+            }
+        }
+    }
+
+    /// Fill this destination with a value from a partial.
+    pub fn fill_from_partial(&mut self, partial: Partial<'_>, shape: ShapeDesc) {
+        match self {
+            Destination::Ptr { ptr, init_mark } => {
+                if init_mark.get() {
+                    if let Some(drop_fn) = shape.get().drop_in_place {
+                        unsafe {
+                            drop_fn(ptr.as_ptr());
+                        }
+                    }
+                }
+                unsafe {
+                    partial.move_into(*ptr);
+                }
+                init_mark.set();
+            }
+            Destination::HashMap { .. } => {
+                // TODO: Implement for HashMap
+                // I guess we need another field in the vtable?
+                panic!("fill_from_partial not implemented for HashMap");
+            }
+        }
+    }
 }
 
 /// Allows writing into a struct field or inserting into a hash map.
@@ -79,13 +120,20 @@ impl<'s> Slot<'s> {
                     }
                 }
 
-                trace!("Filling struct field at address: \x1b[33m{:?}\x1b[0m with type: \x1b[33m{}\x1b[0m", ptr, T::shape());
+                trace!(
+                    "Filling struct field at address: \x1b[33m{:?}\x1b[0m with type: \x1b[33m{}\x1b[0m",
+                    ptr,
+                    T::shape()
+                );
                 unsafe { std::ptr::write(ptr.as_ptr() as *mut T, value) };
                 init_mark.set();
             }
             Destination::HashMap { map, key } => {
                 let map = unsafe { &mut *(map.as_ptr() as *mut HashMap<String, T>) };
-                trace!("Inserting value of type: \x1b[33m{}\x1b[0m into HashMap with key: \x1b[33m{key}\x1b[0m", T::shape());
+                trace!(
+                    "Inserting value of type: \x1b[33m{}\x1b[0m into HashMap with key: \x1b[33m{key}\x1b[0m",
+                    T::shape()
+                );
                 map.insert(key, value);
             }
         }
@@ -118,7 +166,7 @@ impl<'s> Slot<'s> {
                     trace!(
                         "Filling HashMap entry: key=\x1b[33m{}\x1b[0m, src=\x1b[33m{:?}\x1b[0m, size=\x1b[33m{}\x1b[0m bytes",
                         key,
-                        partial.addr.as_ptr(),
+                        partial.addr().as_ptr(),
                         self.shape.get().layout.size()
                     );
                     // TODO: Implement for HashMap
@@ -129,6 +177,57 @@ impl<'s> Slot<'s> {
         }
     }
 
+    /// Mark this slot as initialized without filling it with a value.
+    /// This is used when a Partial is built directly into the slot's memory location.
+    pub fn mark_as_initialized(&mut self) {
+        match &mut self.dest {
+            Destination::Ptr { init_mark, .. } => {
+                // For struct fields, we can just set the init mark
+                init_mark.set();
+            }
+            Destination::HashMap { .. } => {
+                // For HashMap slots, marking as initialized doesn't make sense
+                // without actually inserting a value
+                panic!("Cannot mark a HashMap slot as initialized without a value");
+            }
+        }
+    }
+
+    /// Convert this slot into a Partial that writes directly to the slot's memory location.
+    /// This allows for a more direct deserialization workflow.
+    pub fn into_partial(self) -> Partial<'s> {
+        let shape = self.shape;
+        let mut dest = self.dest;
+
+        // Check if we need to uninitialize the field
+        if let Destination::Ptr { ptr, init_mark } = &mut dest {
+            if init_mark.get() {
+                if let Some(drop_fn) = shape.get().drop_in_place {
+                    unsafe {
+                        drop_fn(ptr.as_ptr());
+                    }
+                }
+                // Reset the init mark
+                init_mark.unset();
+            }
+        }
+
+        // Create a borrowed Partial that writes directly to the slot's memory location
+        if let Destination::Ptr { ptr, .. } = dest {
+            Partial::for_dest(ptr, shape, Some(dest))
+        } else {
+            // For HashMap entries, we need to allocate a new Partial
+            // and ensure it's properly inserted into the map when built
+            let mut partial = Partial::alloc(shape);
+
+            // Update the partial to include a reference to the destination
+            partial.set_dest(Some(dest));
+
+            partial
+        }
+    }
+
+    /// Returns the shape of the field we're writing.
     pub fn shape(&self) -> ShapeDesc {
         self.shape
     }

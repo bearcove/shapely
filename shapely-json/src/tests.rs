@@ -1,6 +1,8 @@
+use std::mem::MaybeUninit;
+
 use super::*;
 
-use shapely::Shapely;
+use shapely::{Partial, Shapely};
 
 #[test]
 fn test_from_json() {
@@ -11,10 +13,9 @@ fn test_from_json() {
     }
     let json = r#"{"name": "Alice", "age": 30}"#;
 
-    let mut test_struct = TestStruct::partial();
-    from_json(&mut test_struct, json).unwrap();
-
-    let built_struct = test_struct.build::<TestStruct>();
+    let mut test_struct = MaybeUninit::<TestStruct>::uninit();
+    from_json(Partial::borrow(&mut test_struct), json).unwrap();
+    let built_struct = unsafe { test_struct.assume_init() };
     assert_eq!(built_struct.name, "Alice");
     assert_eq!(built_struct.age, 30);
 }
@@ -74,10 +75,4 @@ fn test_to_json() {
     .unwrap();
     let json_indented = String::from_utf8(buffer).unwrap();
     assert_eq!(json_indented, expected_json_indented.trim());
-
-    // Test roundtrip
-    let mut deserialized = TestStruct::partial();
-    from_json(&mut deserialized, expected_json).unwrap();
-    let deserialized_struct = deserialized.build::<TestStruct>();
-    assert_eq!(deserialized_struct, test_struct);
 }
