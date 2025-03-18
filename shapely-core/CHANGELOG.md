@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1](https://github.com/bearcove/shapely/compare/shapely-core-v3.0.0...shapely-core-v3.0.1) - 2025-03-18
+
+### Other
+
+- specific toolchains, reformat code
+- extract shape pretty printing into its own module
+- Improve debug output
+
 ## [3.0.0](https://github.com/bearcove/shapely/compare/shapely-core-v2.0.1...shapely-core-v3.0.0) - 2025-03-11
 
 ### Added
