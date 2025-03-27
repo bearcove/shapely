@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1](https://github.com/bearcove/shapely/compare/shapely-json-v3.0.0...shapely-json-v3.0.1) - 2025-03-27
+
+### Other
+
+- shill for namespace, closes #36
+- specific toolchains, reformat code
+- Improve debug output
+- woo
+
 ## [2.0.0](https://github.com/bearcove/shapely/compare/shapely-json-v1.0.0...shapely-json-v2.0.0) - 2025-03-11
 
 ### Other
