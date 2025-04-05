@@ -34,7 +34,7 @@ fn codegen_tuple_impls(w: &mut dyn Write) -> std::fmt::Result {
     writeln!(w)?;
     writeln!(
         w,
-        "use crate::{{Field, FieldFlags, Def, StructDef, Shape, Shapely, TypeNameOpts, value_vtable}};"
+        "use crate::{{Field, FieldFlags, Def, StructDef, Shape, Shapely, TypeNameOpts}};"
     )?;
 
     // Generate implementations for tuples of size 1 to 12
@@ -107,10 +107,33 @@ fn codegen_tuple_impls(w: &mut dyn Write) -> std::fmt::Result {
                 .join(",")
         );
 
+        let shape_list = format!(
+            "&[{}]",
+            (0..n)
+                .map(|i| format!("T{}::SHAPE", i))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+
+        let debug_fn_impl = format!(r#"
+                                    let value = unsafe {{ value.as_ref::<{tuple}>() }};
+                                    write!(f, "(")?;
+                                    {}
+                                    write!(f, ")")
+                                "#,
+            (0..n)
+                .map(|i| {{
+                    let prefix = if i > 0 { "write!(f, \", \")?; " } else { "" };
+                    format!("{}unsafe {{ (T{}::SHAPE.vtable.debug.unwrap_unchecked())(OpaqueConst::from_ref(&value.{}), f) }}?;", prefix, i, i)
+                }})
+                .collect::<Vec<_>>()
+                .join("\n                                    ")
+        );
+
         writeln!(
             w,
             r#"
-            impl<{type_params}> Shapely for {tuple} where {where_clause}
+            unsafe impl<{type_params}> Shapely for {tuple} where {where_clause}
             {{
                 const DUMMY: Self = {dummy};
                 const SHAPE: &'static Shape = &const {{
@@ -122,7 +145,19 @@ fn codegen_tuple_impls(w: &mut dyn Write) -> std::fmt::Result {
 
                     Shape {{
                         layout: Layout::new::<{tuple}>(),
-                        vtable: value_vtable!({tuple}, type_name::<{type_params}> as _),
+                        vtable: ValueVTable {{
+                            type_name: type_name::<{tuple}>(),
+                            display: None,
+                            debug: const {{
+                                if Characteristic::DEBUG.all({shape_list}) {
+                                    Some(|value, f| {
+
+                                    })
+                                } else {
+                                    None
+                                }
+                            }}
+                        }},
                         def: Def::Tuple(StructDef {{
                             fields: {fields}
                         }}),
