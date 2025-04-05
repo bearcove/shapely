@@ -57,6 +57,24 @@ where
                         None
                     }
                 },
+                eq: if T0::SHAPE.vtable.eq.is_some() {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0,)>() };
+                        let b = unsafe { b.as_ref::<(T0,)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+                    })
+                } else {
+                    None
+                },
                 // ... (other vtable fields)
             },
             def: Def::Tuple(StructDef {
@@ -128,6 +146,32 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some() && T1::SHAPE.vtable.eq.is_some() {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -211,6 +255,45 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -305,6 +388,56 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -416,6 +549,67 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -557,6 +751,78 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -712,6 +978,89 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5, T6)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5, T6)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -882,6 +1231,100 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                    && T7::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 6
+                        if !unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T7::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.7),
+                                OpaqueConst::from_ref(&b.7),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -1066,6 +1509,111 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                    && T7::SHAPE.vtable.eq.is_some()
+                    && T8::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 6
+                        if !unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 7
+                        if !unsafe {
+                            (T7::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.7),
+                                OpaqueConst::from_ref(&b.7),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T8::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.8),
+                                OpaqueConst::from_ref(&b.8),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -1266,6 +1814,122 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                    && T7::SHAPE.vtable.eq.is_some()
+                    && T8::SHAPE.vtable.eq.is_some()
+                    && T9::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>() };
+                        let b = unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 6
+                        if !unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 7
+                        if !unsafe {
+                            (T7::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.7),
+                                OpaqueConst::from_ref(&b.7),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 8
+                        if !unsafe {
+                            (T8::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.8),
+                                OpaqueConst::from_ref(&b.8),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T9::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.9),
+                                OpaqueConst::from_ref(&b.9),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -1483,6 +2147,135 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                    && T7::SHAPE.vtable.eq.is_some()
+                    && T8::SHAPE.vtable.eq.is_some()
+                    && T9::SHAPE.vtable.eq.is_some()
+                    && T10::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a =
+                            unsafe { a.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>() };
+                        let b =
+                            unsafe { b.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>() };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 6
+                        if !unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 7
+                        if !unsafe {
+                            (T7::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.7),
+                                OpaqueConst::from_ref(&b.7),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 8
+                        if !unsafe {
+                            (T8::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.8),
+                                OpaqueConst::from_ref(&b.8),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 9
+                        if !unsafe {
+                            (T9::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.9),
+                                OpaqueConst::from_ref(&b.9),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T10::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.10),
+                                OpaqueConst::from_ref(&b.10),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },
@@ -1714,6 +2507,148 @@ where
                     } else {
                         None
                     }
+                },
+                eq: if T0::SHAPE.vtable.eq.is_some()
+                    && T1::SHAPE.vtable.eq.is_some()
+                    && T2::SHAPE.vtable.eq.is_some()
+                    && T3::SHAPE.vtable.eq.is_some()
+                    && T4::SHAPE.vtable.eq.is_some()
+                    && T5::SHAPE.vtable.eq.is_some()
+                    && T6::SHAPE.vtable.eq.is_some()
+                    && T7::SHAPE.vtable.eq.is_some()
+                    && T8::SHAPE.vtable.eq.is_some()
+                    && T9::SHAPE.vtable.eq.is_some()
+                    && T10::SHAPE.vtable.eq.is_some()
+                    && T11::SHAPE.vtable.eq.is_some()
+                {
+                    Some(|a, b| {
+                        let a = unsafe {
+                            a.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>()
+                        };
+                        let b = unsafe {
+                            b.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>()
+                        };
+
+                        // Compare first element
+                        if !unsafe {
+                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.0),
+                                OpaqueConst::from_ref(&b.0),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 1
+                        if !unsafe {
+                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.1),
+                                OpaqueConst::from_ref(&b.1),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 2
+                        if !unsafe {
+                            (T2::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.2),
+                                OpaqueConst::from_ref(&b.2),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 3
+                        if !unsafe {
+                            (T3::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.3),
+                                OpaqueConst::from_ref(&b.3),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 4
+                        if !unsafe {
+                            (T4::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.4),
+                                OpaqueConst::from_ref(&b.4),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 5
+                        if !unsafe {
+                            (T5::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.5),
+                                OpaqueConst::from_ref(&b.5),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 6
+                        if !unsafe {
+                            (T6::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.6),
+                                OpaqueConst::from_ref(&b.6),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 7
+                        if !unsafe {
+                            (T7::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.7),
+                                OpaqueConst::from_ref(&b.7),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 8
+                        if !unsafe {
+                            (T8::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.8),
+                                OpaqueConst::from_ref(&b.8),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 9
+                        if !unsafe {
+                            (T9::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.9),
+                                OpaqueConst::from_ref(&b.9),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare element 10
+                        if !unsafe {
+                            (T10::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.10),
+                                OpaqueConst::from_ref(&b.10),
+                            )
+                        } {
+                            return false;
+                        }
+
+                        // Compare last element
+                        unsafe {
+                            (T11::SHAPE.vtable.eq.unwrap_unchecked())(
+                                OpaqueConst::from_ref(&a.11),
+                                OpaqueConst::from_ref(&b.11),
+                            )
+                        }
+                    })
+                } else {
+                    None
                 },
                 // ... (other vtable fields)
             },

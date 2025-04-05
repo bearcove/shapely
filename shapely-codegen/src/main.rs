@@ -144,6 +144,10 @@ impl TupleGenerator {
         writeln!(w, "                    }}")?;
         writeln!(w, "                }},")?;
 
+        // Write eq implementation
+        self.write_eq_impl(w)?;
+        writeln!(w, ",")?;
+
         // TODO: Add other vtable fields here
         writeln!(w, "                // ... (other vtable fields)")?;
 
@@ -240,6 +244,70 @@ impl TupleGenerator {
         }
 
         write!(w, " ] }}")?;
+        Ok(())
+    }
+    
+    fn write_eq_impl<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        writeln!(w, "                eq: if ")?;
+        
+        // Check if all type parameters implement PartialEq
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, " && ")?;
+            }
+            write!(w, "T{}::SHAPE.vtable.eq.is_some()", i)?;
+        }
+        
+        writeln!(w, " {{")?;
+        writeln!(w, "                    Some(|a, b| {{")?;
+        write!(w, "                        let a = unsafe {{ a.as_ref::<")?;
+        self.write_tuple(w)?;
+        writeln!(w, ">() }};")?;
+        write!(w, "                        let b = unsafe {{ b.as_ref::<")?;
+        self.write_tuple(w)?;
+        writeln!(w, ">() }};")?;
+        writeln!(w)?;
+        
+        // Compare each element
+        for i in 0..self.n {
+            if i == 0 {
+                writeln!(w, "                        // Compare first element")?;
+                writeln!(w, "                        if !unsafe {{")?;
+                writeln!(w, "                            (T{}::SHAPE.vtable.eq.unwrap_unchecked())(" , i)?;
+                writeln!(w, "                                OpaqueConst::from_ref(&a.{i}),")?;
+                writeln!(w, "                                OpaqueConst::from_ref(&b.{i}),")?;
+                writeln!(w, "                            )")?;
+                writeln!(w, "                        }} {{")?;
+                writeln!(w, "                            return false;")?;
+                writeln!(w, "                        }}")?;
+                writeln!(w)?;
+            } else if i == self.n - 1 {
+                writeln!(w, "                        // Compare last element")?;
+                writeln!(w, "                        unsafe {{")?;
+                writeln!(w, "                            (T{}::SHAPE.vtable.eq.unwrap_unchecked())(" , i)?;
+                writeln!(w, "                                OpaqueConst::from_ref(&a.{i}),")?;
+                writeln!(w, "                                OpaqueConst::from_ref(&b.{i}),")?;
+                writeln!(w, "                            )")?;
+                writeln!(w, "                        }}")?;
+            } else {
+                writeln!(w, "                        // Compare element {i}")?;
+                writeln!(w, "                        if !unsafe {{")?;
+                writeln!(w, "                            (T{}::SHAPE.vtable.eq.unwrap_unchecked())(" , i)?;
+                writeln!(w, "                                OpaqueConst::from_ref(&a.{i}),")?;
+                writeln!(w, "                                OpaqueConst::from_ref(&b.{i}),")?;
+                writeln!(w, "                            )")?;
+                writeln!(w, "                        }} {{")?;
+                writeln!(w, "                            return false;")?;
+                writeln!(w, "                        }}")?;
+                writeln!(w)?;
+            }
+        }
+        
+        writeln!(w, "                    }})")?;
+        writeln!(w, "                }} else {{")?;
+        writeln!(w, "                    None")?;
+        writeln!(w, "                }}")?;
+        
         Ok(())
     }
 }
