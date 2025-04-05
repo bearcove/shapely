@@ -1,11 +1,70 @@
 use std::alloc::Layout;
 
-use shapely_types::Characteristic;
-
 use crate::{
-    Def, Field, FieldFlags, MarkerTraits, OpaqueConst, Shape, Shapely, StructDef, TypeNameOpts,
+    Characteristic, Def, Field, FieldFlags, OpaqueConst, Shape, Shapely, StructDef, TypeNameOpts,
     ValueVTable,
 };
+
+unsafe impl<T0> Shapely for (T0,)
+where
+    T0: Shapely,
+{
+    const DUMMY: Self = (T0::DUMMY,);
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0>(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result
+        where
+            T0: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0,), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0,)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[T0::SHAPE]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0,)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const { [field!(0, T0)] },
+            }),
+        }
+    };
+}
 
 unsafe impl<T0, T1> Shapely for (T0, T1)
 where
@@ -28,10 +87,9 @@ where
                 (T1::SHAPE.vtable.type_name)(f, opts)?;
                 write!(f, ")")
             } else {
-                write!(f, "(⋯)")
+                write!(f, "⋯")
             }
         }
-
         macro_rules! field {
             ($idx:tt, $ty:ty) => {
                 Field {
@@ -42,181 +100,1640 @@ where
                 }
             };
         }
-
         Shape {
             layout: Layout::new::<(T0, T1)>(),
             vtable: &ValueVTable {
-                type_name: type_name::<T0, T1> as _,
+                type_name: type_name::<T0, T1>,
                 display: None,
                 debug: const {
                     if Characteristic::Debug.all(&[T0::SHAPE, T1::SHAPE]) {
                         Some(|value, f| {
                             let value = unsafe { value.as_ref::<(T0, T1)>() };
                             write!(f, "(")?;
-                            // First element
                             unsafe {
                                 (T0::SHAPE.vtable.debug.unwrap_unchecked())(
                                     OpaqueConst::from_ref(&value.0),
                                     f,
-                                )?;
-                            }
+                                )
+                            }?;
                             write!(f, ", ")?;
-                            // Second element
                             unsafe {
                                 (T1::SHAPE.vtable.debug.unwrap_unchecked())(
                                     OpaqueConst::from_ref(&value.1),
                                     f,
-                                )?;
-                            }
+                                )
+                            }?;
                             write!(f, ")")
                         })
                     } else {
                         None
                     }
                 },
-                eq: if T0::SHAPE.vtable.eq.is_some() && T1::SHAPE.vtable.eq.is_some() {
-                    Some(|a, b| {
-                        let a = unsafe { a.as_ref::<(T0, T1)>() };
-                        let b = unsafe { b.as_ref::<(T0, T1)>() };
-
-                        // Compare first elements
-                        if !unsafe {
-                            (T0::SHAPE.vtable.eq.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&a.0),
-                                OpaqueConst::from_ref(&b.0),
-                            )
-                        } {
-                            return false;
-                        }
-
-                        // Compare second elements
-                        unsafe {
-                            (T1::SHAPE.vtable.eq.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&a.1),
-                                OpaqueConst::from_ref(&b.1),
-                            )
-                        }
-                    })
-                } else {
-                    None
-                },
-                ord: None,
-                partial_ord: if T0::SHAPE.vtable.partial_ord.is_some()
-                    && T1::SHAPE.vtable.partial_ord.is_some()
-                {
-                    Some(|a, b| {
-                        let a = unsafe { a.as_ref::<(T0, T1)>() };
-                        let b = unsafe { b.as_ref::<(T0, T1)>() };
-
-                        // Compare first elements
-                        let ord0 = unsafe {
-                            (T0::SHAPE.vtable.partial_ord.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&a.0),
-                                OpaqueConst::from_ref(&b.0),
-                            )
-                        };
-
-                        match ord0 {
-                            Some(std::cmp::Ordering::Equal) => {}
-                            Some(order) => return Some(order),
-                            None => return None,
-                        }
-
-                        // If first elements are equal, compare second elements
-                        unsafe {
-                            (T1::SHAPE.vtable.partial_ord.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&a.1),
-                                OpaqueConst::from_ref(&b.1),
-                            )
-                        }
-                    })
-                } else {
-                    None
-                },
-                hash: if T0::SHAPE.vtable.hash.is_some() && T1::SHAPE.vtable.hash.is_some() {
-                    Some(|value, state, hasher| {
-                        let value = unsafe { value.as_ref::<(T0, T1)>() };
-
-                        // Hash first element
-                        unsafe {
-                            (T0::SHAPE.vtable.hash.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&value.0),
-                                state,
-                                hasher,
-                            )
-                        };
-
-                        // Hash second element
-                        unsafe {
-                            (T1::SHAPE.vtable.hash.unwrap_unchecked())(
-                                OpaqueConst::from_ref(&value.1),
-                                state,
-                                hasher,
-                            )
-                        };
-                    })
-                } else {
-                    None
-                },
-                drop_in_place: Some(|ptr| {
-                    unsafe { ptr.drop_in_place::<(T0, T1)>() };
-                }),
-                parse: None,
-                try_from: None,
-                default_in_place: Some(|ptr| unsafe { ptr.write((T0::DUMMY, T1::DUMMY)) }),
-                clone_into: if T0::SHAPE.vtable.clone_into.is_some()
-                    && T1::SHAPE.vtable.clone_into.is_some()
-                {
-                    Some(|src, dst| unsafe {
-                        let src_tuple = src.as_ref::<(T0, T1)>();
-
-                        let refs = (
-                            OpaqueConst::from_ref(&src_tuple.0),
-                            OpaqueConst::from_ref(&src_tuple.1),
-                        );
-
-                        let clone_into = (
-                            T0::SHAPE.vtable.clone_into.unwrap_unchecked(),
-                            T1::SHAPE.vtable.clone_into.unwrap_unchecked(),
-                        );
-
-                        (clone_into.0)(refs.0, dst.field_uninit(0));
-                        (clone_into.1)(refs.1, dst.field_uninit(1));
-
-                        dst.assume_init()
-                    })
-                } else {
-                    None
-                },
-                marker_traits: {
-                    let mut traits = MarkerTraits::empty();
-
-                    // SEND
-                    if T0::SHAPE.vtable.marker_traits.contains(MarkerTraits::SEND)
-                        && T1::SHAPE.vtable.marker_traits.contains(MarkerTraits::SEND)
-                    {
-                        traits = traits.union(MarkerTraits::SEND);
-                    }
-
-                    // SYNC
-                    if T0::SHAPE.vtable.marker_traits.contains(MarkerTraits::SYNC)
-                        && T1::SHAPE.vtable.marker_traits.contains(MarkerTraits::SYNC)
-                    {
-                        traits = traits.union(MarkerTraits::SYNC);
-                    }
-
-                    // EQ
-                    if T0::SHAPE.vtable.marker_traits.contains(MarkerTraits::EQ)
-                        && T1::SHAPE.vtable.marker_traits.contains(MarkerTraits::EQ)
-                    {
-                        traits = traits.union(MarkerTraits::EQ);
-                    }
-
-                    traits
-                },
+                // ... (other vtable fields)
             },
             def: Def::Tuple(StructDef {
                 fields: &const { [field!(0, T0), field!(1, T1)] },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2> Shapely for (T0, T1, T2)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+{
+    const DUMMY: Self = (T0::DUMMY, T1::DUMMY, T2::DUMMY);
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2>(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[T0::SHAPE, T1::SHAPE, T2::SHAPE]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0, T1, T2)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const { [field!(0, T0), field!(1, T1), field!(2, T2)] },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3> Shapely for (T0, T1, T2, T3)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+{
+    const DUMMY: Self = (T0::DUMMY, T1::DUMMY, T2::DUMMY, T3::DUMMY);
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3>(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[T0::SHAPE, T1::SHAPE, T2::SHAPE, T3::SHAPE]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0, T1, T2, T3)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const { [field!(0, T0), field!(1, T1), field!(2, T2), field!(3, T3)] },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4> Shapely for (T0, T1, T2, T3, T4)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+{
+    const DUMMY: Self = (T0::DUMMY, T1::DUMMY, T2::DUMMY, T3::DUMMY, T4::DUMMY);
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4>(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0, T1, T2, T3, T4)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5> Shapely for (T0, T1, T2, T3, T4, T5)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4, T5), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0, T1, T2, T3, T4, T5)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6> Shapely for (T0, T1, T2, T3, T4, T5, T6)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4, T5, T6), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe { value.as_ref::<(T0, T1, T2, T3, T4, T5, T6)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6, T7> Shapely for (T0, T1, T2, T3, T4, T5, T6, T7)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+    T7: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+        T7::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6, T7>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+            T7: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T7::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4, T5, T6, T7), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6, T7)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6, T7>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                        T7::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value =
+                                unsafe { value.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T7::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.7),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                        field!(7, T7),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6, T7, T8> Shapely for (T0, T1, T2, T3, T4, T5, T6, T7, T8)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+    T7: Shapely,
+    T8: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+        T7::DUMMY,
+        T8::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+            T7: Shapely,
+            T8: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T7::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T8::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4, T5, T6, T7, T8), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6, T7, T8>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                        T7::SHAPE,
+                        T8::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value =
+                                unsafe { value.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>() };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T7::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.7),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T8::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.8),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                        field!(7, T7),
+                        field!(8, T8),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> Shapely
+    for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+    T7: Shapely,
+    T8: Shapely,
+    T9: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+        T7::DUMMY,
+        T8::DUMMY,
+        T9::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+            T7: Shapely,
+            T8: Shapely,
+            T9: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T7::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T8::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T9::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!((T0, T1, T2, T3, T4, T5, T6, T7, T8, T9), $idx),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                        T7::SHAPE,
+                        T8::SHAPE,
+                        T9::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe {
+                                value.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>()
+                            };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T7::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.7),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T8::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.8),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T9::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.9),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                        field!(7, T7),
+                        field!(8, T8),
+                        field!(9, T9),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> Shapely
+    for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+    T7: Shapely,
+    T8: Shapely,
+    T9: Shapely,
+    T10: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+        T7::DUMMY,
+        T8::DUMMY,
+        T9::DUMMY,
+        T10::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+            T7: Shapely,
+            T8: Shapely,
+            T9: Shapely,
+            T10: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T7::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T8::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T9::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T10::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!(
+                        (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10),
+                        $idx
+                    ),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                        T7::SHAPE,
+                        T8::SHAPE,
+                        T9::SHAPE,
+                        T10::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe {
+                                value.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>()
+                            };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T7::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.7),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T8::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.8),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T9::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.9),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T10::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.10),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                        field!(7, T7),
+                        field!(8, T8),
+                        field!(9, T9),
+                        field!(10, T10),
+                    ]
+                },
+            }),
+        }
+    };
+}
+
+unsafe impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> Shapely
+    for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)
+where
+    T0: Shapely,
+    T1: Shapely,
+    T2: Shapely,
+    T3: Shapely,
+    T4: Shapely,
+    T5: Shapely,
+    T6: Shapely,
+    T7: Shapely,
+    T8: Shapely,
+    T9: Shapely,
+    T10: Shapely,
+    T11: Shapely,
+{
+    const DUMMY: Self = (
+        T0::DUMMY,
+        T1::DUMMY,
+        T2::DUMMY,
+        T3::DUMMY,
+        T4::DUMMY,
+        T5::DUMMY,
+        T6::DUMMY,
+        T7::DUMMY,
+        T8::DUMMY,
+        T9::DUMMY,
+        T10::DUMMY,
+        T11::DUMMY,
+    );
+    const SHAPE: &'static Shape = &const {
+        use std::fmt;
+
+        fn type_name<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
+            f: &mut fmt::Formatter,
+            opts: TypeNameOpts,
+        ) -> fmt::Result
+        where
+            T0: Shapely,
+            T1: Shapely,
+            T2: Shapely,
+            T3: Shapely,
+            T4: Shapely,
+            T5: Shapely,
+            T6: Shapely,
+            T7: Shapely,
+            T8: Shapely,
+            T9: Shapely,
+            T10: Shapely,
+            T11: Shapely,
+        {
+            if let Some(opts) = opts.for_children() {
+                write!(f, "(")?;
+                (T0::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T1::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T2::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T3::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T4::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T5::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T6::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T7::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T8::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T9::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T10::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ", ")?;
+                (T11::SHAPE.vtable.type_name)(f, opts)?;
+                write!(f, ")")
+            } else {
+                write!(f, "⋯")
+            }
+        }
+        macro_rules! field {
+            ($idx:tt, $ty:ty) => {
+                Field {
+                    name: stringify!($idx),
+                    shape: <$ty>::SHAPE,
+                    offset: std::mem::offset_of!(
+                        (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11),
+                        $idx
+                    ),
+                    flags: FieldFlags::EMPTY,
+                }
+            };
+        }
+        Shape {
+            layout: Layout::new::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>(),
+            vtable: &ValueVTable {
+                type_name: type_name::<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>,
+                display: None,
+                debug: const {
+                    if Characteristic::Debug.all(&[
+                        T0::SHAPE,
+                        T1::SHAPE,
+                        T2::SHAPE,
+                        T3::SHAPE,
+                        T4::SHAPE,
+                        T5::SHAPE,
+                        T6::SHAPE,
+                        T7::SHAPE,
+                        T8::SHAPE,
+                        T9::SHAPE,
+                        T10::SHAPE,
+                        T11::SHAPE,
+                    ]) {
+                        Some(|value, f| {
+                            let value = unsafe {
+                                value.as_ref::<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>()
+                            };
+                            write!(f, "(")?;
+                            unsafe {
+                                (T0::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.0),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T1::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.1),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T2::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.2),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T3::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.3),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T4::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.4),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T5::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.5),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T6::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.6),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T7::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.7),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T8::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.8),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T9::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.9),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T10::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.10),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ", ")?;
+                            unsafe {
+                                (T11::SHAPE.vtable.debug.unwrap_unchecked())(
+                                    OpaqueConst::from_ref(&value.11),
+                                    f,
+                                )
+                            }?;
+                            write!(f, ")")
+                        })
+                    } else {
+                        None
+                    }
+                },
+                // ... (other vtable fields)
+            },
+            def: Def::Tuple(StructDef {
+                fields: &const {
+                    [
+                        field!(0, T0),
+                        field!(1, T1),
+                        field!(2, T2),
+                        field!(3, T3),
+                        field!(4, T4),
+                        field!(5, T5),
+                        field!(6, T6),
+                        field!(7, T7),
+                        field!(8, T8),
+                        field!(9, T9),
+                        field!(10, T10),
+                        field!(11, T11),
+                    ]
+                },
             }),
         }
     };

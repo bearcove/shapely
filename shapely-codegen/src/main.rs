@@ -29,142 +29,233 @@ fn main() {
     }
 }
 
-fn codegen_tuple_impls(w: &mut dyn Write) -> std::fmt::Result {
+struct TupleGenerator {
+    n: usize,
+}
+
+impl TupleGenerator {
+    fn new(n: usize) -> Self {
+        Self { n }
+    }
+
+    fn write_type_params<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, ", ")?;
+            }
+            write!(w, "T{}", i)?;
+        }
+        Ok(())
+    }
+
+    fn write_where_clause<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, ", ")?;
+            }
+            write!(w, "T{}: Shapely", i)?;
+        }
+        Ok(())
+    }
+
+    fn write_tuple<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        if self.n == 1 {
+            write!(w, "(T0,)")
+        } else {
+            write!(w, "(")?;
+            self.write_type_params(w)?;
+            write!(w, ")")
+        }
+    }
+
+    fn write_dummy<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        write!(w, "(")?;
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, ",")?;
+            }
+            write!(w, "T{}::DUMMY", i)?;
+        }
+        write!(w, ",)")
+    }
+
+    fn write_shape_list<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        write!(w, "&[")?;
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, ",")?;
+            }
+            write!(w, "T{}::SHAPE", i)?;
+        }
+        write!(w, "]")
+    }
+
+    fn write_impl<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        // Start the implementation
+        write!(w, "\nunsafe impl<")?;
+        self.write_type_params(w)?;
+        write!(w, "> Shapely for ")?;
+        self.write_tuple(w)?;
+        write!(w, " where ")?;
+        self.write_where_clause(w)?;
+        writeln!(w, " {{")?;
+
+        // Write DUMMY constant
+        write!(w, "    const DUMMY: Self = ")?;
+        self.write_dummy(w)?;
+        writeln!(w, ";")?;
+
+        // Start SHAPE constant
+        writeln!(w, "    const SHAPE: &'static Shape = &const {{")?;
+        writeln!(w, "        use std::fmt;")?;
+        writeln!(w)?;
+
+        // Write type_name_fn
+        self.write_type_name_fn(w)?;
+        writeln!(w)?;
+
+        // Write field_macro
+        self.write_field_macro(w)?;
+        writeln!(w)?;
+
+        // Start Shape definition
+        writeln!(w, "        Shape {{")?;
+        write!(w, "            layout: Layout::new::<")?;
+        self.write_tuple(w)?;
+        writeln!(w, ">(),")?;
+
+        // Start vtable
+        writeln!(w, "            vtable: &ValueVTable {{")?;
+        write!(w, "                type_name: type_name::<")?;
+        self.write_type_params(w)?;
+        writeln!(w, ">,")?;
+        writeln!(w, "                display: None,")?;
+
+        // Write debug implementation
+        writeln!(w, "                debug: const {{")?;
+        write!(w, "                    if Characteristic::Debug.all(")?;
+        self.write_shape_list(w)?;
+        writeln!(w, ") {{")?;
+        writeln!(w, "                        Some(|value, f| {{")?;
+        self.write_debug_fn_impl(w)?;
+        writeln!(w, "                        }})")?;
+        writeln!(w, "                    }} else {{")?;
+        writeln!(w, "                        None")?;
+        writeln!(w, "                    }}")?;
+        writeln!(w, "                }},")?;
+
+        // TODO: Add other vtable fields here
+        writeln!(w, "                // ... (other vtable fields)")?;
+
+        // Close vtable
+        writeln!(w, "            }},")?;
+
+        // Write def field
+        writeln!(w, "            def: Def::Tuple(StructDef {{")?;
+        write!(w, "                fields: ")?;
+        self.write_fields(w)?;
+        writeln!(w)?;
+        writeln!(w, "            }}),")?;
+
+        // Close everything
+        writeln!(w, "        }}")?;
+        writeln!(w, "    }};")?;
+        writeln!(w, "}}")
+    }
+
+    fn write_type_name_fn<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        write!(w, "fn type_name<")?;
+        self.write_type_params(w)?;
+        writeln!(
+            w,
+            ">(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result"
+        )?;
+        write!(w, "where ")?;
+        self.write_where_clause(w)?;
+        writeln!(w)?;
+        writeln!(w, "{{")?;
+        writeln!(w, "    if let Some(opts) = opts.for_children() {{")?;
+        writeln!(w, "        write!(f, \"(\")?;")?;
+
+        for i in 0..self.n {
+            if i > 0 {
+                writeln!(w, "        write!(f, \", \")?;")?;
+            }
+            writeln!(w, "        (T{}::SHAPE.vtable.type_name)(f, opts)?;", i)?;
+        }
+
+        writeln!(w, "        write!(f, \")\")")?;
+        writeln!(w, "    }} else {{")?;
+        writeln!(w, "        write!(f, \"⋯\")")?;
+        writeln!(w, "    }}")?;
+        write!(w, "}}")?;
+        Ok(())
+    }
+
+    fn write_field_macro<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        writeln!(w, "macro_rules! field {{")?;
+        writeln!(w, "    ($idx:tt, $ty:ty) => {{")?;
+        writeln!(w, "        Field {{")?;
+        writeln!(w, "            name: stringify!($idx),")?;
+        writeln!(w, "            shape: <$ty>::SHAPE,")?;
+        write!(w, "            offset: std::mem::offset_of!(")?;
+        self.write_tuple(w)?;
+        writeln!(w, ", $idx),")?;
+        writeln!(w, "            flags: FieldFlags::EMPTY,")?;
+        writeln!(w, "        }}")?;
+        writeln!(w, "    }}")?;
+        write!(w, "}}")?;
+        Ok(())
+    }
+
+    fn write_debug_fn_impl<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        write!(w, "let value = unsafe {{ value.as_ref::<")?;
+        self.write_tuple(w)?;
+        writeln!(w, ">() }};")?;
+        writeln!(w, "write!(f, \"(\")?;")?;
+
+        for i in 0..self.n {
+            if i > 0 {
+                writeln!(w, "write!(f, \", \")?;")?;
+            }
+            writeln!(
+                w,
+                "unsafe {{ (T{}::SHAPE.vtable.debug.unwrap_unchecked())(OpaqueConst::from_ref(&value.{}), f) }}?;",
+                i, i
+            )?;
+        }
+
+        write!(w, "write!(f, \")\")")?;
+        Ok(())
+    }
+
+    fn write_fields<W: Write>(&self, w: &mut W) -> std::fmt::Result {
+        write!(w, "&const {{ [ ")?;
+
+        for i in 0..self.n {
+            if i > 0 {
+                write!(w, ",")?;
+            }
+            write!(w, "field!({}, T{})", i, i)?;
+        }
+
+        write!(w, " ] }}")?;
+        Ok(())
+    }
+}
+
+fn codegen_tuple_impls(mut w: impl Write) -> std::fmt::Result {
     writeln!(w, "use std::alloc::Layout;")?;
     writeln!(w)?;
     writeln!(
         w,
-        "use crate::{{Field, FieldFlags, Def, StructDef, Shape, Shapely, TypeNameOpts}};"
+        "use crate::{{Field, FieldFlags, Def, StructDef, Shape, Shapely, TypeNameOpts, ValueVTable, Characteristic, OpaqueConst}};"
     )?;
 
     // Generate implementations for tuples of size 1 to 12
     for n in 1..=12 {
-        let type_params = (0..n)
-            .map(|i| format!("T{}", i))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let where_clause = (0..n)
-            .map(|i| format!("T{}: Shapely", i))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let type_name_fn = format!(
-            r#"fn type_name<{type_params}>(f: &mut fmt::Formatter, opts: TypeNameOpts) -> fmt::Result
-            where {where_clause}
-            {{
-                if let Some(opts) = opts.for_children() {{
-                    write!(f, "(")?;
-                    {}
-                    write!(f, ")")
-                }} else {{
-                    write!(f, "(⋯)")
-                }}
-            }}"#,
-            (0..n)
-                .map(|i| {
-                    let prefix = if i > 0 { "write!(f, \", \")?; " } else { "" };
-                    format!("{}(T{}::SHAPE.vtable.type_name)(f, opts)?;", prefix, i)
-                })
-                .collect::<Vec<_>>()
-                .join("\n                    ")
-        );
-
-        let tuple = if n == 1 {
-            "(T0,)".to_string()
-        } else {
-            format!("({})", type_params)
-        };
-
-        let field_macro = format!(
-            r#"
-        macro_rules! field {{
-            ($idx:tt, $ty:ty) => {{
-                Field {{
-                    name: stringify!($idx),
-                    shape: <$ty>::SHAPE,
-                    offset: std::mem::offset_of!({tuple}, $idx),
-                    flags: FieldFlags::EMPTY,
-                }}
-            }}
-        }}
-        "#
-        );
-
-        let fields = format!(
-            "&const {{ [ {} ] }}",
-            (0..n)
-                .map(|i| format!("field!({}, T{})", i, i))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-
-        let dummy = format!(
-            "({},)",
-            (0..n)
-                .map(|i| format!("T{}::DUMMY", i))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-
-        let shape_list = format!(
-            "&[{}]",
-            (0..n)
-                .map(|i| format!("T{}::SHAPE", i))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-
-        let debug_fn_impl = format!(r#"
-                                    let value = unsafe {{ value.as_ref::<{tuple}>() }};
-                                    write!(f, "(")?;
-                                    {}
-                                    write!(f, ")")
-                                "#,
-            (0..n)
-                .map(|i| {{
-                    let prefix = if i > 0 { "write!(f, \", \")?; " } else { "" };
-                    format!("{}unsafe {{ (T{}::SHAPE.vtable.debug.unwrap_unchecked())(OpaqueConst::from_ref(&value.{}), f) }}?;", prefix, i, i)
-                }})
-                .collect::<Vec<_>>()
-                .join("\n                                    ")
-        );
-
-        writeln!(
-            w,
-            r#"
-            unsafe impl<{type_params}> Shapely for {tuple} where {where_clause}
-            {{
-                const DUMMY: Self = {dummy};
-                const SHAPE: &'static Shape = &const {{
-                    use std::fmt;
-
-                    {type_name_fn}
-
-                    {field_macro}
-
-                    Shape {{
-                        layout: Layout::new::<{tuple}>(),
-                        vtable: ValueVTable {{
-                            type_name: type_name::<{tuple}>(),
-                            display: None,
-                            debug: const {{
-                                if Characteristic::DEBUG.all({shape_list}) {
-                                    Some(|value, f| {
-
-                                    })
-                                } else {
-                                    None
-                                }
-                            }}
-                        }},
-                        def: Def::Tuple(StructDef {{
-                            fields: {fields}
-                        }}),
-                    }}
-                }};
-            }}"#
-        )?;
+        let generator = TupleGenerator::new(n);
+        generator.write_impl(&mut w)?;
     }
     Ok(())
 }
